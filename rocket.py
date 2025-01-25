@@ -12,7 +12,7 @@ R = 6.371e6     # radius
 rho0 = 1.225    # Density at surface
 Cd = 0.6
 g = 9.81
-A = np.pi   # diameter of 2 m
+A = 75   # diameter of 2 m
 
 class Rocket():
     def __init__(self, dt=0.01, rocket_mass=0, r=R,
@@ -83,7 +83,7 @@ class Rocket():
     
     def update_alfa(self):
         if self.current_stage == self.stage2:
-            self.alfa = min((self.t-self.stage1.burnTime)/(self.stage2.burnTime)*np.pi/2, np.pi/3)*1
+            self.alfa = min((self.t-self.stage1.burnTime)/(self.stage2.burnTime)*np.pi/2, np.pi/3)
         return
             
     def accel_r(self):
@@ -167,11 +167,13 @@ class Integrator:
         #print("Integrating for"+str(nn*self.numStepsPerFrame)+"steps")
         for i in range(nn):
             self.integrate(rocket, obs)
-            if rocket.status == "Has exited":
-                print("success")
-                break
-            elif rocket.status == "Crashed":
+            
+            if rocket.status == "Crashed":
                 print("Crashed")
+                break
+            elif rocket.status == "Has exited":
+                #for j in range(100):
+                #    self.integrate(rocket, obs)
                 break
     def step(self, rocket):
         pass
@@ -254,6 +256,7 @@ class Simulation:
         r_list = self.obs.r
         theta_list = self.obs.theta
         print("Maximum r:", max(r_list))
+        print(self.rocket.status)
 
         swap_list = self.obs.stageswap_coord
 
@@ -298,6 +301,7 @@ class Simulation:
 
         stageswap_time = self.obs.stageswap_time
         stageswap_energy = self.obs.stageswap_energy
+
         print(self.obs.stageswap_time)
 
         plt.figure()
@@ -347,22 +351,16 @@ class Simulation:
         time_steps = len(x_list) // stepsPerFrame
         ani = FuncAnimation(fig, update, frames=time_steps, init_func=init, blit=True, interval=50)
         plt.show()
-
-    
-    #def plot_obs(self):
-                            
-
 def main():
-    _dt = 0.1
+    _dt = 1
     integrator = RK4(_dt)
-    
-    rocket = Rocket(rocket_mass=0.1, m1=0.70, t1=150, m2=0.2, t2=300, ve2=4500)
+    rocket = Rocket(rocket_mass=0.1, mTot=1e6, m1=0.7, t1=150, ve1=7000, m2=0.2, t2=300, ve2=7000)
     obs = Observables()
     integrator.simulate(rocket, obs, nn=100000)
 
     sim = Simulation(rocket, obs)
-    #sim.run_plot()
-    sim.run_plot_obs()
+    sim.run_plot()
+    #sim.run_plot_obs()
     #sim.run_animate()
 def main2():
     _dt = [0.01, 0.1, 1]
