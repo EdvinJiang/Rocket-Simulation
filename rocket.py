@@ -47,18 +47,6 @@ class Rocket():
             #print("v:",self.v_r)
             #print("t:", self.t)
 
-            if self.current_stage.active == False:
-                print("Current stage ended, r:", self.r)
-                obs.stageswap_coord.append([self.r, self.theta])
-                self.current_stage = self.next_stage
-                self.next_stage = None
-        
-        # check crash into earth
-        if self.r < R:
-            print("Rocket crashed")
-            self.status = "Crashed"
-
-
     def Fg(self):
         return G*M*self.mTot/(self.r)**2
     
@@ -72,6 +60,8 @@ class Rocket():
         return self.getRho()*(self.v_r**2 + (self.r*self.dtheta)**2) * Cd * A/2
 
     def getRho(self):
+        if self.current_stage == None:
+            return 0
         if self.r < 11000:
             H = 8500
         elif self.r < 50e3 and self.r > 11e3:
@@ -88,11 +78,12 @@ class Rocket():
         K = (self.mTot*(self.v_r**2 + self.r*self.dtheta))/2
         #Gravitational pot energy
         U = -G*M*self.mTot/self.r
+        print(K, U, K+U)
         return K + U
     
     def update_alfa(self):
         if self.current_stage == self.stage2:
-            self.alfa = min((self.t-self.stage1.burnTime)/(self.stage2.burnTime)*np.pi/2, np.pi/2)
+            self.alfa = min((self.t-self.stage1.burnTime)/(self.stage2.burnTime)*np.pi/2, np.pi/3)*1
         return
             
     def accel_r(self):
@@ -128,7 +119,10 @@ class Observables:
         self.dtheta = []
         self.theta = []
         self.energy = []
+        self.t = []
         self.stageswap_coord = []
+        self.stageswap_time = []
+        self.stageswap_energy = []
 
 class Integrator:
 
@@ -145,13 +139,27 @@ class Integrator:
         obs.theta.append(rocket.theta)
 
         energy = rocket.get_energy()
+        if rocket.current_stage is None:
+            obs.t.append(rocket.t)
+            obs.energy.append(energy)
 
-        # Update stage
-        rocket.update_rocket(obs, self.dt)
+        if rocket.current_stage is not None and rocket.current_stage.active == False:
+            print("Current stage ended, r:", rocket.r)
+            obs.stageswap_coord.append([rocket.r, rocket.theta])
+            obs.stageswap_time.append(rocket.t)
+            obs.stageswap_energy.append(energy)
+            rocket.current_stage = rocket.next_stage
+            rocket.next_stage = None
+
+        # check crash into earth
+        if rocket.r < R:
+            print("Rocket crashed")
+            rocket.status = "Crashed"
 
         if energy > 0:
             rocket.status = "Has exited"
-        obs.energy.append(energy)
+        # Update stage
+        rocket.update_rocket(obs, self.dt)
         rocket.t += self.dt
 
     def simulate(self, rocket, obs, nn):
@@ -234,8 +242,7 @@ class RK4(Integrator):
         rocket.dtheta += (c1 + 2*c2 + 2*c3 + c4)/6
         rocket.theta += (d1 + 2*d2 + 2*d3 + d4)/6
          
-class Simulation:
-    
+class Simulation: 
     def reset(self, rocket, obs):
         self.rocket = rocket
         self.obs = obs
@@ -246,6 +253,7 @@ class Simulation:
     def run_plot(self):
         r_list = self.obs.r
         theta_list = self.obs.theta
+        print("Maximum r:", max(r_list))
 
         swap_list = self.obs.stageswap_coord
 
@@ -284,6 +292,20 @@ class Simulation:
         plt.legend()
         plt.show()
 
+    def run_plot_obs(self):
+        energy_list = self.obs.energy
+        t_list = self.obs.t
+
+        stageswap_time = self.obs.stageswap_time
+        stageswap_energy = self.obs.stageswap_energy
+        print(self.obs.stageswap_time)
+
+        plt.figure()
+        plt.plot(t_list, energy_list, label="Total Energy")
+        #plt.scatter(stageswap_time, stageswap_energy, color="black", label="Change of Stage")
+        plt.legend()
+        plt.show()
+
     # Takes too long time
     def run_animate(self,
                     tmax=30,
@@ -292,6 +314,7 @@ class Simulation:
 
 
         r_list = self.obs.r
+       
         theta_list = self.obs.theta
 
         x_list = r_list * np.cos(theta_list)
@@ -330,16 +353,29 @@ class Simulation:
                             
 
 def main():
-    _dt = 1
+    _dt = 0.1
     integrator = RK4(_dt)
     
-    rocket = Rocket(rocket_mass=0.1, m1=0.70, t1=150, m2=0.2, t2=300, ve2=9000)
+    rocket = Rocket(rocket_mass=0.1, m1=0.70, t1=150, m2=0.2, t2=300, ve2=4500)
     obs = Observables()
-    integrator.simulate(rocket, obs, nn=10000)
+    integrator.simulate(rocket, obs, nn=100000)
 
     sim = Simulation(rocket, obs)
-    sim.run_plot()
+    #sim.run_plot()
+    sim.run_plot_obs()
     #sim.run_animate()
+def main2():
+    _dt = [0.01, 0.1, 1]
+    for timestep in _dt:
+        integrator = RK4(_dt)
+        rocket = Rocket(rocket_mass=0.1, m1=0.70, t1=150, m2=0.2, t2=300, ve2=4500)
+        obs = Observables()
+        integrator.simulate(rocket, obs, nn=100000)
+
+        sim = Simulation(rocket, obs)
+        #sim.run_plot()
+        sim.run_plot_obs()
+
 
 
 main()
