@@ -43,9 +43,6 @@ class Rocket():
             # Remove fuel, check active stage
             self.current_stage.update_stage(dt)
             self.mTot = self.rocket_mass + self.stage1.m + self.stage2.m
-
-            #print("v:",self.v_r)
-            #print("t:", self.t)
         return
 
     def Fg(self):
@@ -137,14 +134,11 @@ class Integrator:
         obs.r.append(rocket.r)
         obs.dtheta.append(rocket.dtheta)
         obs.theta.append(rocket.theta)
-
-        energy = rocket.get_energy()       
-
         obs.t.append(rocket.t)
-        obs.energy.append(energy)
-        # Update stage
+        # removes fuelmass and sets status of stage to inactive if empty tank
         rocket.update_rocket(obs, self.dt)
-        rocket.t += self.dt
+        energy = rocket.get_energy()       
+        obs.energy.append(energy)
 
         if rocket.current_stage is not None and rocket.current_stage.active == False:
             print("Current stage ended, r:", rocket.r)
@@ -168,6 +162,7 @@ class Integrator:
         #print("Integrating for"+str(nn*self.numStepsPerFrame)+"steps")
         for i in range(nn):
             self.integrate(rocket, obs)
+            print(i)
             
             if rocket.status == "Crashed":
                 print("Crashed")
@@ -256,6 +251,7 @@ class RK4(Integrator):
         rocket.r += (b1 + 2*b2 + 2*b3 + b4)/6
         rocket.dtheta += (c1 + 2*c2 + 2*c3 + c4)/6
         rocket.theta += (d1 + 2*d2 + 2*d3 + d4)/6
+        rocket.t += self.dt
          
 class Simulation: 
     def reset(self, rocket, obs):
@@ -370,69 +366,26 @@ def main():
     integrator = RK4(_dt)
     rocket = Rocket(rocket_mass=0.05, mTot=5e5, m1=0.7, t1=200, ve1=6000, m2=0.25, t2=300, ve2=6000)
     obs = Observables()
-    integrator.simulate(rocket, obs, nn=10000)
+    integrator.simulate(rocket, obs, nn=100)
     print(rocket.status)
 
     sim = Simulation(rocket, obs)
     sim.run_plot()
     #sim.run_plot_obs()
     #sim.run_animate()
-def main2():
-    _dt = [0.01, 0.1, 1]
-    for timestep in _dt:
-        integrator = RK4(_dt)
-        rocket = Rocket(rocket_mass=0.1, m1=0.70, t1=150, m2=0.2, t2=300, ve2=4500)
-        obs = Observables()
-        integrator.simulate(rocket, obs, nn=100000)
-
-        sim = Simulation(rocket, obs)
-        #sim.run_plot()
-        sim.run_plot_obs()
-#Compare integrators
-def main3():
-    _dt =0.1
-    
-    """integrator = RK4(_dt)
-    rocket = Rocket(rocket_mass=0.05, mTot=5e5, m1=0.7, t1=200, ve1=6000, m2=0.25, t2=300, ve2=6000)
-    obs = Observables()
-    integrator.simulate(rocket, obs, nn=1000)
-    RK4_energy = obs.energy
-    RK4_time = obs.t"""
-    integrator = EulerCromer(_dt)
-    rocket = Rocket(rocket_mass=0.05, mTot=5e5, m1=0.7, t1=200, ve1=6000, m2=0.25, t2=300, ve2=6000)
-    obs = Observables()
-    integrator.simulate(rocket, obs, nn=30000)
-    EC1_energy = obs.energy
-    EC1_time = obs.t
-    print(obs.stageswap_time)
-
-    _dt =0.01
-
-    integrator = EulerCromer(_dt)
-    rocket = Rocket(rocket_mass=0.05, mTot=5e5, m1=0.7, t1=200, ve1=6000, m2=0.25, t2=300, ve2=6000)
-    obs = Observables()
-    integrator.simulate(rocket, obs, nn=300000)
-    EC2_energy = obs.energy
-    EC2_time = obs.t
-    print(obs.stageswap_time)
-
-    plt.figure()
-    #plt.plot(RK4_time, RK4_energy, label="RK4 Energy")
-    plt.plot(EC1_time, EC1_energy, label="Euler-Cromer Energy")
-    plt.plot(EC2_time, EC2_energy, label="Euler-Cromer Energy")
-    plt.legend()
-    plt.show()
 
 def main4():
-    dt_list = [1, 0.001]
+    dt_list =[1, 0.1, 0.01, 0.01] 
+    nn_list = [1000, 10000, 100000, 1000000]
     x_list = [] 
     y_list = []
     for i in range(len(dt_list)):
-        integrator = RK4(dt_list[i])
+        #integrator = RK4(dt_list[i])    
+        integrator = RK4(dt_list[i])    
         rocket = Rocket(rocket_mass=0.05, mTot=5e5, m1=0.7, t1=200, ve1=6000, m2=0.25, t2=300, ve2=6000)
         obs = Observables()
-        integrator.simulate(rocket, obs, nn=10000*10^(i))
-        y_list.append(obs.energy)
+        integrator.simulate(rocket, obs, nn=nn_list[i])
+        y_list.append(obs.r)
         x_list.append(obs.t)
     
     plt.figure()
@@ -441,6 +394,83 @@ def main4():
     plt.legend()
     plt.show()
 
-main3()
+def main5():
+    true_list = []
+    time_list = []
+    error_list = []
+
+    integrator = RK4(0.0001)    
+    rocket = Rocket(rocket_mass=0.05, mTot=5e5, m1=0.7, t1=200, ve1=6000, m2=0.25, t2=300, ve2=6000)
+    obs = Observables()
+    integrator.simulate(rocket, obs, nn=1000000)
+    true_list = obs.energy
+    time_list = obs.t
+    
+    dt_list = [0.1, 0.01, 0.001]
+    nn_list = [1000, 10000, 100000]
+    #dt_list = [1, 0.1, 0.01]
+    #nn_list = [100000, 100000, 100000]
+    x_list = [] 
+    y_list = []
+    for i in range(len(dt_list)):
+        #integrator = RK4(dt_list[i])    
+        integrator = EulerCromer(dt_list[i])    
+        rocket = Rocket(rocket_mass=0.05, mTot=5e5, m1=0.7, t1=200, ve1=6000, m2=0.25, t2=300, ve2=6000)
+        obs = Observables()
+        integrator.simulate(rocket, obs, nn=nn_list[i])
+        y_list.append(obs.energy)
+        x_list.append(obs.t)
+    print("1")
+    plt.figure()
+    y_inter = []
+    for j in range(len(y_list)):
+        y_inter.append(np.interp(time_list, x_list[j], y_list[j]))
+        error_list.append(y_inter[-1]-true_list)
+    print("2")
+    for k in range(len(error_list)):
+        plt.plot(time_list, error_list[k], label="dt="+str(dt_list[k]))
+    plt.legend()
+    plt.show()
+
+def main6():
+    true_list = []
+    time_list = []
+    error_list = []
+
+    integrator = RK4(0.0001)    
+    rocket = Rocket(rocket_mass=0.05, mTot=5e5, m1=0.7, t1=200, ve1=6000, m2=0.25, t2=300, ve2=6000)
+    obs = Observables()
+    integrator.simulate(rocket, obs, nn=100000)
+    true_list = obs.r
+    time_list = obs.t
+    
+    dt_list = [0.01, 0.001, 0.0001]
+    nn_list = [1000, 10000, 100000]
+    #dt_list = [1, 0.1, 0.01]
+    #nn_list = [100000, 100000, 100000]
+    x_list = [] 
+    y_list = []
+    for i in range(len(dt_list)):
+        #integrator = RK4(dt_list[i])    
+        integrator = RK4(dt_list[i])    
+        rocket = Rocket(rocket_mass=0.05, mTot=5e5, m1=0.7, t1=200, ve1=6000, m2=0.25, t2=300, ve2=6000)
+        obs = Observables()
+        integrator.simulate(rocket, obs, nn=nn_list[i])
+        y_list.append(obs.r)
+        x_list.append(obs.t)
+        
+    print("1")
+    plt.figure()
+    y_inter = []
+    for j in range(len(y_list)):
+        y_inter.append(np.interp(time_list, x_list[j], y_list[j]))
+        error_list.append(y_inter[-1]-true_list)
+    print("2")
+    for k in range(len(error_list)):
+        plt.plot(time_list, error_list[k], label="dt="+str(dt_list[k]))
+    plt.legend()
+    plt.show()
+
+main4()
     
 
